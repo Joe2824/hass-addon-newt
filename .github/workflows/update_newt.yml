@@ -1,0 +1,51 @@
+name: "Update Upstream Newt"
+
+on:
+  schedule:
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+
+      - name: Get latest Newt version
+        id: get_version
+        run: |
+          # Fetches the latest release tag from the upstream repository
+          LATEST_TAG=$(curl -s https://api.github.com/repos/fosrl/newt/releases/latest | jq -r .tag_name)
+          LATEST_VERSION=${LATEST_TAG#v}
+          echo "LATEST_VERSION=$LATEST_VERSION" >> $GITHUB_ENV
+          echo "Latest version found: $LATEST_VERSION"
+
+      - name: Update files and Changelog
+        run: |
+          sed -i -E 's/^ARG NEWT_VERSION=".*"/ARG NEWT_VERSION="'"${LATEST_VERSION}"'"/' newt/Dockerfile
+          sed -i -E 's/^version: ".*"/version: "'"${LATEST_VERSION}"'"/' newt/config.yaml
+
+          # Add entry to CHANGELOG.md
+          awk -v version="${LATEST_VERSION}" -v date="$(date +%Y-%m-%d)" '
+          1
+          /\[Semantic Versioning\]/ {
+              print ""
+              print "## [" version " - " date "]"
+              print "### Changed"
+              print "- Newt version bumped to " version "."
+          }
+          ' newt/CHANGELOG.md > tmp.md && mv tmp.md newt/CHANGELOG.md
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "Newt version bumped to ${{ env.LATEST_VERSION }}"
+          title: "Update Newt to ${{ env.LATEST_VERSION }}"
+          body: "Automatically generated PR. Updates `Dockerfile`, `config.yaml`, and `CHANGELOG.md` to the latest upstream version of `fosrl/newt` (${{ env.LATEST_VERSION }})."
+          branch: "update-newt-${{ env.LATEST_VERSION }}"
+          base: "main"
+          delete-branch: true
