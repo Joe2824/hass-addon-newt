@@ -17,6 +17,8 @@ jobs:
 
       - name: Get latest Newt version
         id: get_version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Fetches the latest release tag from the upstream repository
           LATEST_TAG=$(curl -s https://api.github.com/repos/fosrl/newt/releases/latest | jq -r .tag_name)
@@ -32,8 +34,15 @@ jobs:
             echo "Version is already up to date. Skipping update."
             echo "UPDATE_NEEDED=false" >> $GITHUB_ENV
           else
-            echo "New version available! Proceeding with update."
-            echo "UPDATE_NEEDED=true" >> $GITHUB_ENV
+            # Check if a pull request for this version already exists
+            PR_COUNT=$(gh pr list --head "update-newt-${LATEST_VERSION}" --state open --json number --jq 'length')
+            if [ "$PR_COUNT" -gt 0 ]; then
+              echo "A pull request for version $LATEST_VERSION already exists. Skipping update."
+              echo "UPDATE_NEEDED=false" >> $GITHUB_ENV
+            else
+              echo "New version available and no open PR found! Proceeding with update."
+              echo "UPDATE_NEEDED=true" >> $GITHUB_ENV
+            fi
           fi
 
       - name: Update files and Changelog
