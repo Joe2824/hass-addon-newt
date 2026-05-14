@@ -59,6 +59,7 @@ jobs:
         with:
           arch: ${{ matrix.arch }}
           container-registry-password: ${{ secrets.GITHUB_TOKEN }}
+          context: newt
           image: ${{ matrix.image }}
           image-tags: |
             ${{ needs.init.outputs.version }}
